@@ -1,10 +1,14 @@
-package main
+package store_test
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/carvalhodanielg/kvstore/store"
+)
 
 func TestKVStore(t *testing.T) {
 
-	kv := &KVStore{}
+	kv := &store.KVStore{}
 
 	kv.Put("niceMan", "daniel")
 
