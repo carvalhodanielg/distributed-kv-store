@@ -1,21 +1,32 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"sync"
+)
 
 type KVStore struct {
+	mu    sync.Mutex
 	store map[string]string
 }
 
 func (kv *KVStore) Put(key, value string) {
+	kv.mu.Lock()
+	defer kv.mu.Unlock()
+
 	if kv.store == nil {
 		kv.store = make(map[string]string)
 	}
 
 	kv.store[key] = value
+	fmt.Printf("[PUT] key=%s, value=%s\n", key, value)
 
 }
 
 func (kv *KVStore) Get(key string) string {
+	kv.mu.Lock()
+	defer kv.mu.Unlock()
+
 	if kv.store == nil {
 		return ""
 	}
@@ -26,10 +37,29 @@ func main() {
 
 	kv := &KVStore{}
 
-	kv.Put("winner", "daniel")
-	kv.Put("runnerup", "jhenifer")
+	var wg sync.WaitGroup
 
-	fmt.Println("winner:", kv.Get("winner"))
-	fmt.Println("runnerup:", kv.Get("runnerup"))
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+
+		go func(i int) {
+			defer wg.Done()
+
+			key := fmt.Sprintf("key-%d", i)
+			value := fmt.Sprintf("value-%d", i)
+
+			kv.Put(key, value)
+		}(i)
+
+	}
+
+	wg.Wait()
+
+	fmt.Println("FIM da execução")
+
+	for i := 0; i < 10; i++ {
+		key := fmt.Sprintf("key-%d", i)
+		fmt.Printf("%s => %s\n", key, kv.Get(key))
+	}
 
 }
