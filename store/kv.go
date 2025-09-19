@@ -20,6 +20,7 @@ func (kv *KVStore) Put(key, value string) {
 
 	kv.store[key] = value
 	fmt.Printf("[PUT] key=%s, value=%s\n", key, value)
+	// return key, value
 
 }
 
@@ -31,35 +32,4 @@ func (kv *KVStore) Get(key string) string {
 		return ""
 	}
 	return kv.store[key]
-}
-
-func main() {
-
-	kv := &KVStore{}
-
-	var wg sync.WaitGroup
-
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-
-		go func(i int) {
-			defer wg.Done()
-
-			key := fmt.Sprintf("key-%d", i)
-			value := fmt.Sprintf("value-%d", i)
-
-			kv.Put(key, value)
-		}(i)
-
-	}
-
-	wg.Wait()
-
-	fmt.Println("FIM da execução")
-
-	for i := 0; i < 10; i++ {
-		key := fmt.Sprintf("key-%d", i)
-		fmt.Printf("%s => %s\n", key, kv.Get(key))
-	}
-
 }
