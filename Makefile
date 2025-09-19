@@ -5,3 +5,6 @@ proto_generate:
 
 run:
 	go run server/main.go
+
+populate:
+	go run client/main.go --flag="populate"

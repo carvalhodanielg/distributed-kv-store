@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"time"
 
@@ -64,6 +65,20 @@ func main() {
 		}
 
 		log.Printf("All values-> %v", r.GetValues())
+	case "populate":
+		for i := range 15 {
+			_, err := c.Put(ctx, &pb.PutRequest{Key: fmt.Sprintf("key-%v", i), Value: fmt.Sprintf("value-%v", i)})
+			if err != nil {
+				log.Fatalf("could not delete: %v", err)
+			}
+
+			_, err = c.Put(ctx, &pb.PutRequest{Key: fmt.Sprintf("key-%v", string(rune('A'+i-1))), Value: fmt.Sprintf("value-%v", string(rune('A'+i-1)))})
+			if err != nil {
+				log.Fatalf("could not delete: %v", err)
+			}
+
+		}
+		log.Printf("POPULATED")
 	default:
 		r, err := c.Get(ctx, &pb.GetRequest{Key: *key})
 
