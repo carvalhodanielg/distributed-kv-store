@@ -19,9 +19,16 @@ var (
 
 type server struct {
 	pb.UnimplementedKvStoreServer
-	// store map[string]string
 	store store.KVStore
 	mu    sync.Mutex
+}
+
+func (s *server) Delete(_ context.Context, in *pb.DeleteRequest) (*pb.DeleteResponse, error) {
+	log.Printf("Received key: %v", in.GetKey())
+
+	s.store.Delete(in.GetKey())
+
+	return &pb.DeleteResponse{Key: in.GetKey()}, nil
 }
 
 func (s *server) Get(_ context.Context, in *pb.GetRequest) (*pb.GetResponse, error) {
@@ -45,7 +52,7 @@ func main() {
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
 
 	if err != nil {
-		log.Fatal("SOME'IN aint righ: %v", err)
+		log.Fatalf("SOME'IN aint righ: %v", err)
 	}
 
 	s := grpc.NewServer()

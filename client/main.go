@@ -40,22 +40,32 @@ func main() {
 
 	defer cancel()
 
-	if *typeOfAction == "put" {
+	switch *typeOfAction {
+	case "put":
 		r, err := c.Put(ctx, &pb.PutRequest{Key: *key, Value: *value})
 
 		if err != nil {
 			log.Fatalf("could not greet: %v", err)
 		}
 
-		log.Printf("sucess to put??: %s, ", r.GetSuccess())
-	} else {
+		log.Printf("Sucess %v, ", r.GetSuccess())
+
+	case "delete":
+		r, err := c.Delete(ctx, &pb.DeleteRequest{Key: *key})
+		if err != nil {
+			log.Fatalf("could not delete: %v", err)
+		}
+
+		log.Printf("DELETE-> key: %s", r.GetKey())
+
+	default:
 		r, err := c.Get(ctx, &pb.GetRequest{Key: *key})
 
 		if err != nil {
 			log.Fatalf("could not greet: %v", err)
 		}
 
-		log.Printf("sucess GOT: value %s, for key %s", r.GetValue(), r.GetKey())
+		log.Printf("GET-> %s::%s", r.GetKey(), r.GetValue())
 	}
 
 }

@@ -10,6 +10,13 @@ type KVStore struct {
 	store map[string]string
 }
 
+func (kv *KVStore) Delete(key string) {
+	kv.mu.Lock()
+	defer kv.mu.Unlock()
+
+	delete(kv.store, key)
+}
+
 func (kv *KVStore) Put(key, value string) {
 	kv.mu.Lock()
 	defer kv.mu.Unlock()
@@ -21,7 +28,6 @@ func (kv *KVStore) Put(key, value string) {
 	kv.store[key] = value
 	fmt.Printf("[PUT] key=%s, value=%s\n", key, value)
 	// return key, value
-
 }
 
 func (kv *KVStore) Get(key string) string {
