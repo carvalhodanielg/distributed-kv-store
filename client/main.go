@@ -57,7 +57,13 @@ func main() {
 		}
 
 		log.Printf("DELETE-> key: %s", r.GetKey())
+	case "all":
+		r, err := c.GetAll(ctx, &pb.GetAllRequest{})
+		if err != nil {
+			log.Fatalf("could not get all: %v", err)
+		}
 
+		log.Printf("All values-> %v", r.GetValues())
 	default:
 		r, err := c.Get(ctx, &pb.GetRequest{Key: *key})
 

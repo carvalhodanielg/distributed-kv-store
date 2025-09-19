@@ -10,6 +10,14 @@ type KVStore struct {
 	store map[string]string
 }
 
+func (kv *KVStore) GetAll() map[string]string {
+	kv.mu.Lock()
+	defer kv.mu.Unlock()
+
+	return kv.store
+
+}
+
 func (kv *KVStore) Delete(key string) {
 	kv.mu.Lock()
 	defer kv.mu.Unlock()

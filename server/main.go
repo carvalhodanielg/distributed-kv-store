@@ -23,6 +23,13 @@ type server struct {
 	mu    sync.Mutex
 }
 
+func (s *server) GetAll(_ context.Context, in *pb.GetAllRequest) (*pb.GetAllResponse, error) {
+
+	res := s.store.GetAll()
+
+	return &pb.GetAllResponse{Values: res}, nil
+}
+
 func (s *server) Delete(_ context.Context, in *pb.DeleteRequest) (*pb.DeleteResponse, error) {
 	log.Printf("Received key: %v", in.GetKey())
 

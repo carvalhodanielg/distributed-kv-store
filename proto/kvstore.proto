@@ -9,7 +9,16 @@ service KvStore {
     rpc Put(PutRequest) returns (PutResponse);
     rpc Get(GetRequest) returns (GetResponse);
     rpc Delete(DeleteRequest) returns (DeleteResponse);
+    rpc GetAll(GetAllRequest) returns (GetAllResponse);
 } 
+
+message GetAllRequest {
+    
+}
+
+message GetAllResponse {
+    map<string,  string> values = 1;
+}
 
 message DeleteRequest {
     string key = 1;

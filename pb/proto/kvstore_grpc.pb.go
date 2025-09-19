@@ -22,6 +22,7 @@ const (
 	KvStore_Put_FullMethodName    = "/kvstore.KvStore/Put"
 	KvStore_Get_FullMethodName    = "/kvstore.KvStore/Get"
 	KvStore_Delete_FullMethodName = "/kvstore.KvStore/Delete"
+	KvStore_GetAll_FullMethodName = "/kvstore.KvStore/GetAll"
 )
 
 // KvStoreClient is the client API for KvStore service.
@@ -31,6 +32,7 @@ type KvStoreClient interface {
 	Put(ctx context.Context, in *PutRequest, opts ...grpc.CallOption) (*PutResponse, error)
 	Get(ctx context.Context, in *GetRequest, opts ...grpc.CallOption) (*GetResponse, error)
 	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
+	GetAll(ctx context.Context, in *GetAllRequest, opts ...grpc.CallOption) (*GetAllResponse, error)
 }
 
 type kvStoreClient struct {
@@ -71,6 +73,16 @@ func (c *kvStoreClient) Delete(ctx context.Context, in *DeleteRequest, opts ...g
 	return out, nil
 }
 
+func (c *kvStoreClient) GetAll(ctx context.Context, in *GetAllRequest, opts ...grpc.CallOption) (*GetAllResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetAllResponse)
+	err := c.cc.Invoke(ctx, KvStore_GetAll_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // KvStoreServer is the server API for KvStore service.
 // All implementations must embed UnimplementedKvStoreServer
 // for forward compatibility.
@@ -78,6 +90,7 @@ type KvStoreServer interface {
 	Put(context.Context, *PutRequest) (*PutResponse, error)
 	Get(context.Context, *GetRequest) (*GetResponse, error)
 	Delete(context.Context, *DeleteRequest) (*DeleteResponse, error)
+	GetAll(context.Context, *GetAllRequest) (*GetAllResponse, error)
 	mustEmbedUnimplementedKvStoreServer()
 }
 
@@ -96,6 +109,9 @@ func (UnimplementedKvStoreServer) Get(context.Context, *GetRequest) (*GetRespons
 }
 func (UnimplementedKvStoreServer) Delete(context.Context, *DeleteRequest) (*DeleteResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Delete not implemented")
+}
+func (UnimplementedKvStoreServer) GetAll(context.Context, *GetAllRequest) (*GetAllResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAll not implemented")
 }
 func (UnimplementedKvStoreServer) mustEmbedUnimplementedKvStoreServer() {}
 func (UnimplementedKvStoreServer) testEmbeddedByValue()                 {}
@@ -172,6 +188,24 @@ func _KvStore_Delete_Handler(srv interface{}, ctx context.Context, dec func(inte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _KvStore_GetAll_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAllRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(KvStoreServer).GetAll(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: KvStore_GetAll_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(KvStoreServer).GetAll(ctx, req.(*GetAllRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // KvStore_ServiceDesc is the grpc.ServiceDesc for KvStore service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -190,6 +224,10 @@ var KvStore_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Delete",
 			Handler:    _KvStore_Delete_Handler,
+		},
+		{
+			MethodName: "GetAll",
+			Handler:    _KvStore_GetAll_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
