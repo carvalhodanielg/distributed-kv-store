@@ -8,3 +8,43 @@ run:
 
 populate:
 	go run client/main.go --flag="populate"
+
+# Comandos Docker
+docker-build:
+	docker build -t kvstore:latest .
+
+docker-build-client:
+	docker build -f Dockerfile.client -t kvstore-client:latest .
+
+docker-run:
+	docker run -p 50051:50051 --name kvstore-server kvstore:latest
+
+docker-run-client:
+	docker run --rm --network host kvstore-client:latest --addr=localhost:50051 --flag="get" --key="test"
+
+docker-compose-up:
+	docker-compose up -d
+
+docker-compose-down:
+	docker-compose down
+
+docker-compose-logs:
+	docker-compose logs -f
+
+# Comandos de desenvolvimento
+dev-setup:
+	go mod tidy
+	make proto_generate
+
+# Comandos de teste
+test:
+	go test ./...
+
+test-coverage:
+	go test -cover ./...
+
+# Limpeza
+clean:
+	docker-compose down
+	docker rmi kvstore:latest kvstore-client:latest 2>/dev/null || true
+	go clean
