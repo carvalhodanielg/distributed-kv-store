@@ -23,6 +23,7 @@ const (
 	KvStore_Get_FullMethodName    = "/kvstore.KvStore/Get"
 	KvStore_Delete_FullMethodName = "/kvstore.KvStore/Delete"
 	KvStore_GetAll_FullMethodName = "/kvstore.KvStore/GetAll"
+	KvStore_Watch_FullMethodName  = "/kvstore.KvStore/Watch"
 )
 
 // KvStoreClient is the client API for KvStore service.
@@ -33,6 +34,7 @@ type KvStoreClient interface {
 	Get(ctx context.Context, in *GetRequest, opts ...grpc.CallOption) (*GetResponse, error)
 	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
 	GetAll(ctx context.Context, in *GetAllRequest, opts ...grpc.CallOption) (*GetAllResponse, error)
+	Watch(ctx context.Context, in *WatchRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[WatchResponse], error)
 }
 
 type kvStoreClient struct {
@@ -83,6 +85,25 @@ func (c *kvStoreClient) GetAll(ctx context.Context, in *GetAllRequest, opts ...g
 	return out, nil
 }
 
+func (c *kvStoreClient) Watch(ctx context.Context, in *WatchRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[WatchResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &KvStore_ServiceDesc.Streams[0], KvStore_Watch_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[WatchRequest, WatchResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type KvStore_WatchClient = grpc.ServerStreamingClient[WatchResponse]
+
 // KvStoreServer is the server API for KvStore service.
 // All implementations must embed UnimplementedKvStoreServer
 // for forward compatibility.
@@ -91,6 +112,7 @@ type KvStoreServer interface {
 	Get(context.Context, *GetRequest) (*GetResponse, error)
 	Delete(context.Context, *DeleteRequest) (*DeleteResponse, error)
 	GetAll(context.Context, *GetAllRequest) (*GetAllResponse, error)
+	Watch(*WatchRequest, grpc.ServerStreamingServer[WatchResponse]) error
 	mustEmbedUnimplementedKvStoreServer()
 }
 
@@ -112,6 +134,9 @@ func (UnimplementedKvStoreServer) Delete(context.Context, *DeleteRequest) (*Dele
 }
 func (UnimplementedKvStoreServer) GetAll(context.Context, *GetAllRequest) (*GetAllResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAll not implemented")
+}
+func (UnimplementedKvStoreServer) Watch(*WatchRequest, grpc.ServerStreamingServer[WatchResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method Watch not implemented")
 }
 func (UnimplementedKvStoreServer) mustEmbedUnimplementedKvStoreServer() {}
 func (UnimplementedKvStoreServer) testEmbeddedByValue()                 {}
@@ -206,6 +231,17 @@ func _KvStore_GetAll_Handler(srv interface{}, ctx context.Context, dec func(inte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _KvStore_Watch_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(WatchRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(KvStoreServer).Watch(m, &grpc.GenericServerStream[WatchRequest, WatchResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type KvStore_WatchServer = grpc.ServerStreamingServer[WatchResponse]
+
 // KvStore_ServiceDesc is the grpc.ServiceDesc for KvStore service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -230,6 +266,12 @@ var KvStore_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _KvStore_GetAll_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "Watch",
+			Handler:       _KvStore_Watch_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "proto/kvstore.proto",
 }

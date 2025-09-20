@@ -10,11 +10,17 @@ service KvStore {
     rpc Get(GetRequest) returns (GetResponse);
     rpc Delete(DeleteRequest) returns (DeleteResponse);
     rpc GetAll(GetAllRequest) returns (GetAllResponse);
+    rpc Watch(WatchRequest) returns (stream WatchResponse);
 } 
 
-message GetAllRequest {
-    
+message WatchRequest{
+    string key = 1;
 }
+message WatchResponse {
+    string message = 1;
+}
+//response é vazia
+message GetAllRequest {}
 
 message GetAllResponse {
     map<string,  string> values = 1;

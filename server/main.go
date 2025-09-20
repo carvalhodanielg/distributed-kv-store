@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"sync"
 
 	pb "github.com/carvalhodanielg/kvstore/pb/proto"
 	"github.com/carvalhodanielg/kvstore/store"
@@ -19,12 +18,15 @@ var (
 
 type server struct {
 	pb.UnimplementedKvStoreServer
-	store store.KVStore
-	mu    sync.Mutex
+	store *store.KVStore
 }
 
 func (s *server) GetAll(_ context.Context, in *pb.GetAllRequest) (*pb.GetAllResponse, error) {
 
+	//Isso aqui pode ser problemático pq quem recebe os dados pode alterar a store
+	//pra evitar isso precisar fazer e retornar uma cópia.
+	//pra isso, devemos fazer um for aqui pra copiar tudo, ou criar um snapshop atualizado a cada update
+	//e retornar ele aqui
 	res := s.store.GetAll()
 
 	return &pb.GetAllResponse{Values: res}, nil
@@ -39,12 +41,14 @@ func (s *server) Delete(_ context.Context, in *pb.DeleteRequest) (*pb.DeleteResp
 }
 
 func (s *server) Get(_ context.Context, in *pb.GetRequest) (*pb.GetResponse, error) {
+
 	log.Printf("Received %v", in.GetKey())
 
 	return &pb.GetResponse{Key: in.GetKey(), Value: s.store.Get(in.GetKey())}, nil
 }
 
 func (s *server) Put(_ context.Context, in *pb.PutRequest) (*pb.PutResponse, error) {
+
 	log.Printf("Received key - %v and value - %v in PUT,", in.GetKey(), in.GetValue())
 
 	s.store.Put(in.GetKey(), in.GetValue())
@@ -52,8 +56,20 @@ func (s *server) Put(_ context.Context, in *pb.PutRequest) (*pb.PutResponse, err
 	return &pb.PutResponse{Success: true}, nil
 }
 
+func (s *server) Watch(in *pb.WatchRequest, stream pb.KvStore_WatchServer) error {
+	w := s.store.Watch(in.Key)
+
+	defer s.store.Unwatch(w)
+
+	for event := range w.Events {
+		if err := stream.Send(&pb.WatchResponse{Message: event}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func main() {
-	// kv := &store.KVStore{}
 	flag.Parse()
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
@@ -62,39 +78,17 @@ func main() {
 		log.Fatalf("SOME'IN aint righ: %v", err)
 	}
 
-	s := grpc.NewServer()
-	pb.RegisterKvStoreServer(s, &server{})
+	srv := grpc.NewServer()
 
-	log.Printf("server listening at %v", lis.Addr())
-	if err := s.Serve(lis); err != nil {
-		log.Fatalf("failed to serve: %v", err)
+	s := &server{
+		store: store.NewKVStore(),
 	}
 
-	// kv := &store.KVStore{}
+	pb.RegisterKvStoreServer(srv, s)
 
-	// var wg sync.WaitGroup
-
-	// for i := 0; i < 10; i++ {
-	// 	wg.Add(1)
-
-	// 	go func(i int) {
-	// 		defer wg.Done()
-
-	// 		key := fmt.Sprintf("key-%d", i)
-	// 		value := fmt.Sprintf("value-%d", i)
-
-	// 		kv.Put(key, value)
-	// 	}(i)
-
-	// }
-
-	// wg.Wait()
-
-	// fmt.Println("FIM da execução")
-
-	// for i := 0; i < 10; i++ {
-	// 	key := fmt.Sprintf("key-%d", i)
-	// 	fmt.Printf("%s => %s\n", key, kv.Get(key))
-	// }
+	log.Printf("server listening at %v", lis.Addr())
+	if err := srv.Serve(lis); err != nil {
+		log.Fatalf("failed to serve: %v", err)
+	}
 
 }

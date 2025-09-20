@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"time"
 
@@ -79,11 +80,36 @@ func main() {
 
 		}
 		log.Printf("POPULATED")
+	case "watch":
+
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+		client := pb.NewKvStoreClient(conn)
+		stream, err := client.Watch(ctx, &pb.WatchRequest{Key: *key})
+		if err != nil {
+			log.Fatalf("client.watch failed w/nil: %v", err)
+		}
+
+		for {
+			w, err := stream.Recv()
+
+			if err == io.EOF {
+				break
+			}
+
+			if err != nil {
+				log.Fatalf("client.watch failed: %v", err)
+
+			}
+
+			log.Printf("Result is %v", w.GetMessage())
+		}
+
 	default:
 		r, err := c.Get(ctx, &pb.GetRequest{Key: *key})
 
 		if err != nil {
-			log.Fatalf("could not greet: %v", err)
+			log.Fatalf("could not get: %v", err)
 		}
 
 		log.Printf("GET-> %s::%s", r.GetKey(), r.GetValue())
