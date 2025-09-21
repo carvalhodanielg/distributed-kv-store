@@ -1,0 +1,51 @@
+FROM golang:1.25.1-alpine AS builder
+
+# Instalar dependências necessárias para protobuf
+RUN apk add --no-cache protobuf-dev protoc make
+
+# Instalar plugins do protoc
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+RUN go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+# Adicionar PATH para os plugins
+ENV PATH="$PATH:/root/go/bin"
+
+# Definir diretório de trabalho
+WORKDIR /app
+
+# Copiar arquivos de dependências primeiro (para cache do Docker)
+COPY go.mod go.sum ./
+
+# Baixar dependências
+RUN go mod download
+
+# Copiar código fonte
+COPY . .
+
+# Gerar código protobuf
+RUN protoc --go_out=pb --go_opt=paths=source_relative \
+    --go-grpc_out=pb --go-grpc_opt=paths=source_relative \
+    proto/kvstore.proto
+
+# Build do servidor
+RUN CGO_ENABLED=0 GOOS=linux go build -o kvstore-server ./server/main.go
+
+# Imagem final minimalista
+FROM alpine:latest
+
+# Instalar ca-certificates para HTTPS
+RUN apk --no-cache add ca-certificates
+
+WORKDIR /app
+
+# Copiar binário do servidor
+COPY --from=builder /app/kvstore-server ./kvstore-server
+
+# Garantir permissões de execução
+RUN chmod +x kvstore-server
+
+# Expor porta do servidor
+EXPOSE 50051
+
+# Comando padrão: executar servidor
+CMD ["./kvstore-server"]

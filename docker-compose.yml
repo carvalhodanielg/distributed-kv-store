@@ -4,19 +4,13 @@ services:
   kvstore-server:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.server
     container_name: kvstore-server
     ports:
       - "50051:50051"
     environment:
       - PORT=50051
-    command: [ "./server", "--port=50051" ]
-    healthcheck:
-      test: [ "CMD", "nc", "-z", "localhost", "50051" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+    command: [ "./kvstore-server", "--port=50051" ]
     networks:
       - kvstore-network
 
@@ -26,10 +20,8 @@ services:
       dockerfile: Dockerfile.client
     container_name: kvstore-client
     depends_on:
-      kvstore-server:
-        condition: service_healthy
-    environment:
-      - SERVER_ADDR=kvstore-server:50051
+      - kvstore-server
+    command: [ "./kvstore-client", "-addr=kvstore-server:50051" ]
     networks:
       - kvstore-network
     profiles:

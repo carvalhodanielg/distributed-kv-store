@@ -105,10 +105,11 @@ git clone <repository-url>
 cd kvstore
 
 # 2. Inicie o servidor
-make docker-compose-up
+docker-compose up kvstore-server
 
-# 3. Teste em outro terminal
-docker run --rm --network host kvstore:latest ./client --addr=localhost:50051 --flag="put" --key="test" --value="hello"
+# 3. Teste com cliente (em outro terminal)
+docker-compose --profile client run kvstore-client -flag=put -key=test -value=hello
+docker-compose --profile client run kvstore-client -flag=get -key=test
 ```
 
 ### Desenvolvimento Local
@@ -132,56 +133,85 @@ go run client/main.go --flag="put" --key="test" --value="hello"
 
 ```bash
 # Build das imagens
-make docker-build              # Build servidor
-make docker-build-client       # Build cliente
+docker-compose build kvstore-server    # Build servidor
+docker-compose build kvstore-client    # Build cliente
 
 # Execução individual
-make docker-run               # Executar servidor
-make docker-run-client        # Executar cliente de teste
+docker-compose up kvstore-server       # Executar apenas servidor
+docker-compose --profile client up    # Executar servidor + cliente
 
 # Docker Compose (Recomendado)
-make docker-compose-up        # Iniciar stack completa
-make docker-compose-down      # Parar stack
-make docker-compose-logs      # Ver logs
+docker-compose up --build              # Build e iniciar servidor
+docker-compose down                    # Parar todos os containers
+docker-compose logs                    # Ver logs
+
+# Testes com cliente
+docker-compose --profile client run kvstore-client -flag=put -key=test -value=hello
+docker-compose --profile client run kvstore-client -flag=get -key=test
+docker-compose --profile client run kvstore-client -flag=all
+docker-compose --profile client run kvstore-client -flag=populate
 
 # Limpeza
-make clean                    # Limpar imagens e containers
+docker-compose down --volumes --remove-orphans  # Limpar tudo
 ```
 
 ### Estrutura das Imagens
 
-- **kvstore:latest**: Servidor gRPC otimizado (Alpine Linux)
-- **kvstore-client:latest**: Cliente CLI para testes
+- **Dockerfile.server**: Servidor gRPC otimizado (multi-stage build, Alpine Linux ~15MB)
+- **Dockerfile.client**: Cliente CLI para testes (multi-stage build, Alpine Linux ~15MB)
+
+### Dockerfiles Separados
+
+#### Dockerfile.server
+- **Multi-stage build**: Compilação em Go Alpine + Runtime em Alpine
+- **Otimizado**: Imagem final ~15MB (vs ~300MB single-stage)
+- **Binário**: `kvstore-server` (evita conflito com diretório `server/`)
+- **Dependências**: Protocol Buffers, gRPC plugins
+- **Runtime**: Alpine Linux com ca-certificates
+
+#### Dockerfile.client
+- **Multi-stage build**: Mesma estratégia do servidor
+- **Binário**: `kvstore-client` (evita conflito com diretório `client/`)
+- **Conectividade**: Configurado para conectar em `kvstore-server:50051`
+- **CLI**: Interface completa para todas as operações
 
 ### Docker Compose
 
 O `docker-compose.yml` inclui:
-- **kvstore-server**: Servidor principal com health check
-- **kvstore-client**: Cliente para testes (profile: client)
-- **kvstore-network**: Rede isolada para comunicação
+- **kvstore-server**: Servidor principal (porta 50051)
+- **kvstore-client**: Cliente para testes (profile: client, conecta automaticamente no servidor)
+- **kvstore-network**: Rede isolada para comunicação entre containers
 
 ### Exemplos de Uso
 
 #### Teste Rápido
 ```bash
 # Terminal 1: Iniciar servidor
-docker run -p 50051:50051 kvstore:latest
+docker-compose up kvstore-server
 
 # Terminal 2: Testar operações
-docker run --rm --network host kvstore:latest ./client \
-  --addr=localhost:50051 --flag="put" --key="docker" --value="test"
-
-docker run --rm --network host kvstore:latest ./client \
-  --addr=localhost:50051 --flag="get" --key="docker"
+docker-compose --profile client run kvstore-client -flag=put -key=docker -value=test
+docker-compose --profile client run kvstore-client -flag=get -key=docker
+docker-compose --profile client run kvstore-client -flag=all
 ```
 
-#### Desenvolvimento com Hot Reload
+#### Desenvolvimento com Docker Compose
 ```bash
 # Usar docker-compose para desenvolvimento
-make docker-compose-up
+docker-compose up --build kvstore-server
 
-# Testar com cliente local
-go run client/main.go --flag="put" --key="local" --value="test"
+# Testar com cliente em outro terminal
+docker-compose --profile client run kvstore-client -flag=put -key=local -value=test
+docker-compose --profile client run kvstore-client -flag=get -key=local
+```
+
+#### Popular Banco com Dados de Teste
+```bash
+# Popular com dados de exemplo
+docker-compose --profile client run kvstore-client -flag=populate
+
+# Ver todos os dados
+docker-compose --profile client run kvstore-client -flag=all
 ```
 
 ## 💻 Desenvolvimento Local
@@ -298,10 +328,14 @@ go test ./store -v
 ### Testes com Docker
 ```bash
 # Testar servidor containerizado
-docker run --rm kvstore:latest ./server --help
+docker-compose run kvstore-server ./kvstore-server --help
 
 # Testar cliente containerizado
-docker run --rm kvstore:latest ./client --help
+docker-compose --profile client run kvstore-client ./kvstore-client --help
+
+# Testar conectividade
+docker-compose up kvstore-server
+docker-compose --profile client run kvstore-client -flag=put -key=test -value=success
 ```
 
 ## 📁 Estrutura do Projeto
@@ -321,8 +355,8 @@ kvstore/
 ├── go.mod                  # Dependências Go
 ├── go.sum                  # Checksums das dependências
 ├── Makefile               # Comandos de build e Docker
-├── Dockerfile             # Imagem do servidor
-├── Dockerfile.client      # Imagem do cliente
+├── Dockerfile.server      # Imagem do servidor (multi-stage)
+├── Dockerfile.client      # Imagem do cliente (multi-stage)
 ├── docker-compose.yml     # Orquestração de containers
 ├── .dockerignore          # Arquivos ignorados no build
 ├── kvstore_test.go        # Testes unitários
@@ -394,10 +428,10 @@ Contribuições são bem-vindas! Para contribuir:
 make test
 
 # Teste com Docker
-make docker-build
-make docker-run-client
+docker-compose build
+docker-compose --profile client run kvstore-client -flag=put -key=test -value=contribution
 
 # Limpeza
-make clean
+docker-compose down --volumes --remove-orphans
 ```
 

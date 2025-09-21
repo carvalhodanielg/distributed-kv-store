@@ -13,11 +13,17 @@ populate:
 docker-build:
 	docker build -t kvstore:latest .
 
+docker-build-debug:
+	docker build -f Dockerfile.debug -t kvstore:debug .
+
 docker-build-client:
 	docker build -f Dockerfile.client -t kvstore-client:latest .
 
 docker-run:
 	docker run -p 50051:50051 --name kvstore-server kvstore:latest
+
+docker-run-debug:
+	docker run -p 50051:50051 --name kvstore-server-debug kvstore:debug
 
 docker-run-client:
 	docker run --rm --network host kvstore-client:latest --addr=localhost:50051 --flag="get" --key="test"
@@ -46,5 +52,9 @@ test-coverage:
 # Limpeza
 clean:
 	docker-compose down
-	docker rmi kvstore:latest kvstore-client:latest 2>/dev/null || true
+	docker rmi kvstore:latest kvstore-client:latest kvstore:debug 2>/dev/null || true
 	go clean
+
+# Debug
+debug:
+	chmod +x debug.sh && ./debug.sh
