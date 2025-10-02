@@ -10,6 +10,8 @@ import (
 	pb "github.com/carvalhodanielg/kvstore/pb/proto"
 	"github.com/carvalhodanielg/kvstore/store"
 	"google.golang.org/grpc"
+
+	bolt "go.etcd.io/bbolt"
 )
 
 var (
@@ -85,6 +87,24 @@ func main() {
 	}
 
 	pb.RegisterKvStoreServer(srv, s)
+
+	db, err := bolt.Open("store.db", 0600, nil)
+
+	if err != nil {
+		log.Fatalf("failed to open db: %v", err)
+	}
+	defer db.Close()
+
+	db.Update(func(tx *bolt.Tx) error {
+
+		bucket, err := tx.CreateBucketIfNotExists([]byte("store"))
+		fmt.Printf("Bucket Criado %s \n", bucket.Inspect().Name)
+		if err != nil {
+			log.Fatalf("failed to create bucket db: %v", err)
+		}
+
+		return nil
+	})
 
 	log.Printf("server listening at %v", lis.Addr())
 	if err := srv.Serve(lis); err != nil {
