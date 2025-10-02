@@ -9,6 +9,19 @@ run:
 populate:
 	go run client/main.go --flag="populate"
 
+getall:
+	go run client/main.go --flag="all"
+
+docker-test-local:
+	docker-compose --profile client run kvstore-client -flag=put -key=test -value=hello
+	docker-compose --profile client run kvstore-client -flag=populate 
+	docker-compose --profile client run kvstore-client -flag=all
+	docker-compose --profile client run kvstore-client -flag=watch -key=test
+	docker-compose --profile client run kvstore-client -flag=put -key=test -value=edited
+	docker-compose --profile client run kvstore-client -flag=put -key=test -value=edited2
+
+
+
 # Comandos Docker
 docker-build:
 	docker build -t kvstore:latest .
