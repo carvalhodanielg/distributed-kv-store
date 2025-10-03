@@ -3,6 +3,9 @@ package store
 import (
 	"fmt"
 	"sync"
+
+	"github.com/carvalhodanielg/kvstore/internal/constants"
+	bolt "go.etcd.io/bbolt"
 )
 
 type KVWatcher struct {
@@ -14,6 +17,13 @@ type KVStore struct {
 	mu       sync.RWMutex
 	store    map[string]string
 	watchers map[string][]*KVWatcher
+	// db       *bolt.DB
+}
+
+var db *bolt.DB
+
+func Init(d *bolt.DB) {
+	db = d
 }
 
 func NewKVStore() *KVStore {
@@ -35,7 +45,14 @@ func (kv *KVStore) Delete(key string) {
 	kv.mu.Lock()
 	defer kv.mu.Unlock()
 
+	//log -> memoria -> db
+	LogDelete(key)
 	delete(kv.store, key)
+	db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(constants.BucketStore))
+		err := b.Delete([]byte(key))
+		return err
+	})
 }
 
 func (kv *KVStore) Put(key, value string) {
@@ -46,7 +63,15 @@ func (kv *KVStore) Put(key, value string) {
 		kv.store = make(map[string]string)
 	}
 
+	//escreve no log -> memória -> banco
+	LogWrite(key, value)
 	kv.store[key] = value
+
+	db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(constants.BucketStore))
+		err := b.Put([]byte(key), []byte(value))
+		return err
+	})
 
 	if wlist, ok := kv.watchers[key]; ok {
 
@@ -56,7 +81,6 @@ func (kv *KVStore) Put(key, value string) {
 			default:
 				fmt.Printf("Envio não foi feito pro canal")
 			}
-			// watcher.Events <- fmt.Sprintf("Key %s updated to %s", key, value)
 		}
 	}
 
@@ -70,6 +94,9 @@ func (kv *KVStore) Get(key string) string {
 	if kv.store == nil {
 		return ""
 	}
+
+	//tratar isso aqui caso nao exista em memoria
+	//e exista suspeita de desatualização em relação ao db
 	return kv.store[key]
 }
 
