@@ -71,3 +71,4 @@ clean:
 # Debug
 debug:
 	chmod +x debug.sh && ./debug.sh
+

@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 
+	"github.com/carvalhodanielg/kvstore/internal/constants"
 	pb "github.com/carvalhodanielg/kvstore/pb/proto"
 	"github.com/carvalhodanielg/kvstore/store"
 	"google.golang.org/grpc"
@@ -71,6 +72,24 @@ func (s *server) Watch(in *pb.WatchRequest, stream pb.KvStore_WatchServer) error
 	return nil
 }
 
+func InitDb(path string) *bolt.DB {
+	db, err := bolt.Open(path, constants.DBFilePermission, nil)
+
+	if err != nil {
+		log.Fatalf("failed to open db: %v", err)
+	}
+
+	err = db.Update(func(tx *bolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists([]byte(constants.BucketStore))
+		return err
+	})
+
+	if err != nil {
+		log.Fatalf("failed to create bucket db: %v", err)
+	}
+	return db
+}
+
 func main() {
 	flag.Parse()
 
@@ -88,23 +107,9 @@ func main() {
 
 	pb.RegisterKvStoreServer(srv, s)
 
-	db, err := bolt.Open("store.db", 0600, nil)
-
-	if err != nil {
-		log.Fatalf("failed to open db: %v", err)
-	}
+	db := InitDb(constants.DBFileName)
 	defer db.Close()
-
-	db.Update(func(tx *bolt.Tx) error {
-
-		bucket, err := tx.CreateBucketIfNotExists([]byte("store"))
-		fmt.Printf("Bucket Criado %s \n", bucket.Inspect().Name)
-		if err != nil {
-			log.Fatalf("failed to create bucket db: %v", err)
-		}
-
-		return nil
-	})
+	store.Init(db)
 
 	log.Printf("server listening at %v", lis.Addr())
 	if err := srv.Serve(lis); err != nil {
