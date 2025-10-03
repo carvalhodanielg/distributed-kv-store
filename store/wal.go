@@ -15,11 +15,26 @@ const (
 	Delete Operation = iota
 )
 
+func (o Operation) String() string {
+	switch o {
+	case Write:
+		return "Write"
+	case Delete:
+		return "Delete"
+	default:
+		return "Unknown"
+	}
+}
+
+func (o Operation) MarshalJSON() ([]byte, error) {
+	return json.Marshal(o.String())
+}
+
 type WalLog struct {
-	Operation Operation
-	Key       string
-	Value     string
-	Timestamp int64 //Unix timestamp
+	Operation Operation `json:"Operation"`
+	Key       string    `json:"Key"`
+	Value     string    `json:"Value"`
+	Timestamp int64     `json:"Timestamp"` //Unix timestamp
 }
 
 // Função deve ser privada
