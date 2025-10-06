@@ -55,6 +55,20 @@ func (kv *KVStore) Delete(key string) {
 	})
 }
 
+// Function that put data in memory after restart. It does not write to log or db
+func (kv *KVStore) PutFromDb(key, value string) {
+	kv.mu.Lock()
+	defer kv.mu.Unlock()
+
+	if kv.store == nil {
+		kv.store = make(map[string]string)
+	}
+
+	//escreve apenas em memória
+	kv.store[key] = value
+
+}
+
 func (kv *KVStore) Put(key, value string) {
 	kv.mu.Lock()
 	defer kv.mu.Unlock()

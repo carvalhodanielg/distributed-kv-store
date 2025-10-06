@@ -435,3 +435,7 @@ docker-compose --profile client run kvstore-client -flag=put -key=test -value=co
 docker-compose down --volumes --remove-orphans
 ```
 
+## To-do
+- [ ] Implementar buffer do WAL em memória, para não travar writes no app
+- [ ] Persistência de dados em memória após restart do nó
+- [ ] Ajustar GET para verificar em memória, se não existir busca no banco

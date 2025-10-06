@@ -111,6 +111,17 @@ func main() {
 	defer db.Close()
 	store.Init(db)
 
+	//restore memomy based on dbData
+	db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(constants.BucketStore))
+
+		b.ForEach(func(k, v []byte) error {
+			s.store.PutFromDb(string(k), string(v))
+			return nil
+		})
+		return nil
+	})
+
 	log.Printf("server listening at %v", lis.Addr())
 	if err := srv.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
