@@ -1,27 +1,60 @@
 version: '3.8'
 
 services:
-  kvstore-server:
+  kvstore-server-01:
     build:
       context: .
       dockerfile: Dockerfile.server
-    container_name: kvstore-server
+    container_name: kvstore-server-01
     ports:
       - "50051:50051"
     environment:
       - PORT=50051
-    command: [ "./kvstore-server", "--port=50051" ]
+      - NODE_ID=1
+      - PEERS=kvstore-server-02:50051,kvstore-server-03:50051
+    command: [ "./kvstore-server" ]
     networks:
       - kvstore-network
-
+  kvstore-server-02:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: kvstore-server-02
+    ports:
+      - "50052:50051"
+    environment:
+      - PORT=50052
+      - NODE_ID=2
+      - PEERS=kvstore-server-01:50051,kvstore-server-03:50051
+    command: [ "./kvstore-server" ]
+    networks:
+      - kvstore-network
+  kvstore-server-03:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: kvstore-server-03
+    ports:
+      - "50053:50051"
+    environment:
+      - PORT=50053
+      - NODE_ID=3
+      - PEERS=kvstore-server-01:50051,kvstore-server-02:50051
+    command: [ "./kvstore-server" ]
+    networks:
+      - kvstore-network
   kvstore-client:
     build:
       context: .
       dockerfile: Dockerfile.client
     container_name: kvstore-client
     depends_on:
-      - kvstore-server
-    command: [ "./kvstore-client", "-addr=kvstore-server:50051" ]
+      - kvstore-server-01
+      - kvstore-server-02
+      - kvstore-server-03
+    environment:
+      - LEADER_ADDR=kvstore-server-01
+    command: [ "./kvstore-client" ]
     networks:
       - kvstore-network
     profiles:
