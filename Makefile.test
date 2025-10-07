@@ -1,0 +1,79 @@
+# Test configuration and utilities
+
+.PHONY: test test-unit test-integration test-benchmark test-coverage test-clean
+
+# Run all tests
+test:
+	@echo "Running all tests..."
+	go test -v ./...
+
+# Run unit tests only
+test-unit:
+	@echo "Running unit tests..."
+	go test -v -short ./store/... ./server/...
+
+# Run integration tests
+test-integration:
+	@echo "Running integration tests..."
+	go test -v -run TestIntegration ./...
+
+# Run benchmarks
+test-benchmark:
+	@echo "Running benchmarks..."
+	go test -v -bench=. -benchmem ./...
+
+# Run tests with coverage
+test-coverage:
+	@echo "Running tests with coverage..."
+	go test -v -coverprofile=coverage.out ./...
+	go tool cover -html=coverage.out -o coverage.html
+	@echo "Coverage report generated: coverage.html"
+
+# Clean test artifacts
+test-clean:
+	@echo "Cleaning test artifacts..."
+	rm -f *.db walog.ndjson coverage.out coverage.html
+	rm -f test_*.db benchmark_*.db
+
+# Run tests in verbose mode
+test-verbose:
+	@echo "Running tests in verbose mode..."
+	go test -v -race ./...
+
+# Run tests with race detection
+test-race:
+	@echo "Running tests with race detection..."
+	go test -v -race ./...
+
+# Run tests with timeout
+test-timeout:
+	@echo "Running tests with timeout..."
+	go test -v -timeout=30s ./...
+
+# Run specific test
+test-specific:
+	@echo "Running specific test..."
+	go test -v -run $(TEST) ./...
+
+# Run tests for specific package
+test-package:
+	@echo "Running tests for package $(PACKAGE)..."
+	go test -v ./$(PACKAGE)/...
+
+# Install test dependencies
+test-deps:
+	@echo "Installing test dependencies..."
+	go mod tidy
+	go mod download
+
+# Generate test coverage badge
+test-badge:
+	@echo "Generating test coverage badge..."
+	go test -coverprofile=coverage.out ./...
+	COVERAGE=$$(go tool cover -func=coverage.out | grep total | awk '{print $$3}' | sed 's/%//'); \
+	echo "Coverage: $$COVERAGE%"; \
+	if [ $$COVERAGE -ge 80 ]; then \
+		echo "✅ Coverage is good ($$COVERAGE%)"; \
+	else \
+		echo "❌ Coverage is low ($$COVERAGE%)"; \
+	fi

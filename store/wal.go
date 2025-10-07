@@ -30,6 +30,23 @@ func (o Operation) MarshalJSON() ([]byte, error) {
 	return json.Marshal(o.String())
 }
 
+func (o *Operation) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+
+	switch s {
+	case "Write":
+		*o = Write
+	case "Delete":
+		*o = Delete
+	default:
+		*o = Operation(99) // Unknown
+	}
+	return nil
+}
+
 type WalLog struct {
 	Operation Operation `json:"Operation"`
 	Key       string    `json:"Key"`
