@@ -6,11 +6,15 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
+	"strings"
+	"time"
 
 	"github.com/carvalhodanielg/kvstore/internal/constants"
 	pb "github.com/carvalhodanielg/kvstore/pb/proto"
 	"github.com/carvalhodanielg/kvstore/store"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	bolt "go.etcd.io/bbolt"
 )
@@ -21,6 +25,7 @@ var (
 
 type server struct {
 	pb.UnimplementedKvStoreServer
+	pb.UnimplementedNodeCommunicationServer
 	store *store.KVStore
 }
 
@@ -72,6 +77,56 @@ func (s *server) Watch(in *pb.WatchRequest, stream pb.KvStore_WatchServer) error
 	return nil
 }
 
+func (s *server) Heartbeat(_ context.Context, in *pb.HeartbeatRequest) (*pb.HeartbeatResponse, error) {
+	log.Printf("Received Heartbeat from %v at %v", in.NodeId, in.Timestamp)
+
+	return &pb.HeartbeatResponse{Alive: true, Timestamp: time.Now().Unix()}, nil
+}
+
+func (s *server) sendHeartbeatToPeers() {
+	peers := os.Getenv("PEERS")
+
+	if peers == "" {
+		fmt.Printf("Sem pares definidos")
+		return
+	}
+
+	peersList := strings.Split(peers, ",")
+
+	nodeID := os.Getenv("NODE_ID")
+
+	for _, peer := range peersList {
+		go func(peerAddr string) {
+			conn, err := grpc.NewClient(peerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+			if err != nil {
+				log.Printf("Failed to connect to %s: %v", peerAddr, err)
+
+				return
+			}
+
+			defer conn.Close()
+
+			client := pb.NewNodeCommunicationClient(conn)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			req := &pb.HeartbeatRequest{
+				NodeId:    nodeID,
+				Timestamp: time.Now().Unix(),
+			}
+
+			resp, err := client.Heartbeat(ctx, req)
+			if err != nil {
+				log.Printf("Heartbeat failed to %s: %v", peerAddr, err)
+				return
+			}
+
+			log.Printf("Heartbeat to %s: alive=%v, timestamp=%d", peerAddr, resp.Alive, resp.Timestamp)
+		}(peer)
+	}
+
+}
+
 func InitDb(path string) *bolt.DB {
 	db, err := bolt.Open(path, constants.DBFilePermission, nil)
 
@@ -106,6 +161,18 @@ func main() {
 	}
 
 	pb.RegisterKvStoreServer(srv, s)
+	pb.RegisterNodeCommunicationServer(srv, s)
+
+	if os.Getenv("NODE_ID") == os.Getenv("LEADER") {
+		go func() {
+			ticker := time.NewTicker(10 * time.Second) //10 segundos
+			defer ticker.Stop()
+
+			for range ticker.C {
+				s.sendHeartbeatToPeers()
+			}
+		}()
+	}
 
 	db := InitDb(constants.DBFileName)
 	defer db.Close()

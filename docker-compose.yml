@@ -12,7 +12,9 @@ services:
       - PORT=50051
       - NODE_ID=1
       - PEERS=kvstore-server-02:50051,kvstore-server-03:50051
+      - LEADER=1
     command: [ "./kvstore-server" ]
+    # command: [ "./kvstore-server", "--port: 50051" ]
     networks:
       - kvstore-network
   kvstore-server-02:
@@ -26,6 +28,7 @@ services:
       - PORT=50052
       - NODE_ID=2
       - PEERS=kvstore-server-01:50051,kvstore-server-03:50051
+      - LEADER=1
     command: [ "./kvstore-server" ]
     networks:
       - kvstore-network
@@ -40,6 +43,7 @@ services:
       - PORT=50053
       - NODE_ID=3
       - PEERS=kvstore-server-01:50051,kvstore-server-02:50051
+      - LEADER=1
     command: [ "./kvstore-server" ]
     networks:
       - kvstore-network
