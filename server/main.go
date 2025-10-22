@@ -178,6 +178,8 @@ func main() {
 	defer db.Close()
 	store.Init(db)
 
+	s.store.Open("localhost:5000", "NODE_01")
+
 	//restore memomy based on dbData
 	db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(constants.BucketStore))
