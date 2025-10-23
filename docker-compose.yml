@@ -32,6 +32,8 @@ services:
     command: [ "./kvstore-server" ]
     networks:
       - kvstore-network
+    depends_on:
+      - kvstore-server-01
   kvstore-server-03:
     build:
       context: .
@@ -47,6 +49,9 @@ services:
     command: [ "./kvstore-server" ]
     networks:
       - kvstore-network
+    depends_on:
+      - kvstore-server-01
+
   kvstore-client:
     build:
       context: .

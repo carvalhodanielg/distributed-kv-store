@@ -163,23 +163,35 @@ func main() {
 	pb.RegisterKvStoreServer(srv, s)
 	pb.RegisterNodeCommunicationServer(srv, s)
 
-	if os.Getenv("NODE_ID") == os.Getenv("LEADER") {
-		go func() {
-			ticker := time.NewTicker(10 * time.Second) //10 segundos
-			defer ticker.Stop()
+	// if os.Getenv("NODE_ID") == os.Getenv("LEADER") {
+	// 	go func() {
+	// 		ticker := time.NewTicker(10 * time.Second) //10 segundos
+	// 		defer ticker.Stop()
 
-			for range ticker.C {
-				s.sendHeartbeatToPeers()
-			}
-		}()
-	}
+	// 		for range ticker.C {
+	// 			s.sendHeartbeatToPeers()
+	// 		}
+	// 	}()
+	// }
 
 	db := InitDb(constants.DBFileName)
 	defer db.Close()
 	store.Init(db)
 
-	s.store.Open("localhost:5000", "NODE_01")
+	s.store.Open("localhost:"+os.Getenv("PORT"), os.Getenv("NODE_ID"))
 
+	// if os.Getenv("NODE_ID") == "1" {
+	// 	log.Printf("node 1 %v", os.Getenv("NODE_ID"))
+	// 	s.store.Open("localhost:"+os.Getenv("PORT"), os.Getenv("NODE_ID"))
+	// } else {
+	if os.Getenv("NODE_ID") != "1" {
+		time.Sleep(2 * time.Second)
+		log.Printf("node other nodes %v", os.Getenv("NODE_ID"))
+		s.store.Join("localhost:50051", os.Getenv("NODE_ID"))
+	}
+	// }
+
+	// s.store.Join("localhost:50002", "NODE_03")
 	//restore memomy based on dbData
 	db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(constants.BucketStore))

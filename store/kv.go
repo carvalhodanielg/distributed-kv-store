@@ -205,6 +205,28 @@ func (kv *KVStore) Unwatch(watcherToUnwatch *KVWatcher) {
 
 type fsm KVStore
 
+func (s *KVStore) Join(myAddress, myID string) error {
+	s.logger.Printf("received join request for remote node %s at %s", myID, myAddress)
+
+	configFuture := s.raft.GetConfiguration()
+	log.Printf("config joining %v", configFuture)
+
+	if err := configFuture.Error(); err != nil {
+		s.logger.Printf("failed get configuration: %v", err)
+		return err
+	}
+
+	f := s.raft.AddVoter(raft.ServerID(myID), raft.ServerAddress(myAddress), 0, 0)
+
+	if f.Error() != nil {
+		return f.Error()
+	}
+
+	s.logger.Printf("Joined sucessfully, %v, %v", myAddress, myID)
+	return nil
+
+}
+
 func (s *KVStore) Open(myAddress, myID string) error {
 	config := raft.DefaultConfig()
 	config.LocalID = raft.ServerID(myID)
