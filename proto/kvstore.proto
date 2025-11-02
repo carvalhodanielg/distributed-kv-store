@@ -11,7 +11,17 @@ service KvStore {
     rpc Delete(DeleteRequest) returns (DeleteResponse);
     rpc GetAll(GetAllRequest) returns (GetAllResponse);
     rpc Watch(WatchRequest) returns (stream WatchResponse);
+    rpc JoinNode(JoinNodeRequest) returns (JoinNodeResponse);
 }
+
+message JoinNodeRequest {
+    string node_id = 1;
+    string address = 2;
+}
+message JoinNodeResponse{
+    bool success = 1;
+}
+
 
 service NodeCommunication {
     rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);

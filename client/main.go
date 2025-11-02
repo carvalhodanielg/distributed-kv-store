@@ -23,13 +23,15 @@ var (
 	key          = flag.String("key", defaultKey, "Key recibida")
 	value        = flag.String("value", "dV", "valor recebido")
 	typeOfAction = flag.String("flag", defaultFlag, "Tipo de ação desejada pelo cliente")
+	nodeID       = flag.String("nodeID", "2", "Joining node")
+	joiningAddr  = flag.String("joiningAddr", "localhost:50052", "joining node address")
 )
 
 func main() {
 	flag.Parse()
 
 	conn, err := grpc.NewClient(*addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-
+	log.Printf("addr %v", *addr)
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
@@ -38,7 +40,7 @@ func main() {
 
 	c := pb.NewKvStoreClient(conn)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 
 	defer cancel()
 
@@ -47,7 +49,7 @@ func main() {
 		r, err := c.Put(ctx, &pb.PutRequest{Key: *key, Value: *value})
 
 		if err != nil {
-			log.Fatalf("could not greet: %v", err)
+			log.Fatalf("could not put: %v", err)
 		}
 
 		log.Printf("Sucess %v, ", r.GetSuccess())
@@ -103,6 +105,16 @@ func main() {
 			}
 
 			log.Printf("Result is %v", w.GetMessage())
+		}
+	case "join":
+		resp, err := c.JoinNode(ctx, &pb.JoinNodeRequest{NodeId: *nodeID, Address: *joiningAddr})
+		if err != nil {
+			log.Fatalf("could join node: %v", err)
+		}
+		if resp.GetSuccess() {
+			log.Printf("Joined node successfully! NodeId=%s, Address=%s", *nodeID, *joiningAddr)
+		} else {
+			log.Fatalf("Join failed! NodeId=%s, Address=%s", *nodeID, *joiningAddr)
 		}
 
 	default:

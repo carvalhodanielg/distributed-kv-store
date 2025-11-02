@@ -13,6 +13,7 @@ import (
 	"github.com/carvalhodanielg/kvstore/internal/constants"
 	pb "github.com/carvalhodanielg/kvstore/pb/proto"
 	"github.com/carvalhodanielg/kvstore/store"
+	"github.com/hashicorp/raft"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -75,6 +76,22 @@ func (s *server) Watch(in *pb.WatchRequest, stream pb.KvStore_WatchServer) error
 		}
 	}
 	return nil
+}
+
+func (s *server) JoinNode(_ context.Context, in *pb.JoinNodeRequest) (*pb.JoinNodeResponse, error) {
+	if s.store.GetRaftState() != raft.Leader {
+		log.Printf("Error joining via RPC -> NOT LEADER", in.NodeId, in.Address)
+
+		return &pb.JoinNodeResponse{Success: false}, nil
+	}
+
+	err := s.store.Join(in.Address, in.NodeId)
+	if err != nil {
+		log.Printf("Error joining via RPC with joining node ID=%v and addres %s", in.NodeId, in.Address)
+		return &pb.JoinNodeResponse{Success: false}, nil
+	}
+	return &pb.JoinNodeResponse{Success: true}, nil
+
 }
 
 func (s *server) Heartbeat(_ context.Context, in *pb.HeartbeatRequest) (*pb.HeartbeatResponse, error) {
@@ -178,18 +195,73 @@ func main() {
 	defer db.Close()
 	store.Init(db)
 
-	s.store.Open("localhost:"+os.Getenv("PORT"), os.Getenv("NODE_ID"))
+	// s.store.Open("localhost:50051", "1")
 
-	// if os.Getenv("NODE_ID") == "1" {
-	// 	log.Printf("node 1 %v", os.Getenv("NODE_ID"))
-	// 	s.store.Open("localhost:"+os.Getenv("PORT"), os.Getenv("NODE_ID"))
-	// } else {
-	if os.Getenv("NODE_ID") != "1" {
+	nodeID := os.Getenv("NODE_ID")
+	// portStr := os.Getenv("PORT")
+
+	// Usa o nome do container (hostname) para comunicação entre containers
+	hostname, _ := os.Hostname()
+	myAddress := fmt.Sprintf("%s:50051", hostname)
+
+	if nodeID == "1" {
+		log.Printf("node 1 %v", nodeID)
+		s.store.Open(myAddress, nodeID, true)
+		transportManager := s.store.GetTransportManager()
+
+		if transportManager != nil {
+			transportManager.Register(srv)
+			log.Printf("Raft transport registered on gRPC server")
+		}
+	} else {
+
+		s.store.Open(myAddress, nodeID, false)
+
+		transportManager := s.store.GetTransportManager()
+		if transportManager != nil {
+			transportManager.Register(srv)
+			log.Printf("Raft transport registered on gRPC server")
+		}
+
+		time.Sleep(5 * time.Second)
+
+		peers := os.Getenv("PEERS")
+		peersList := strings.Split(peers, ",")
+
+		for _, peer := range peersList {
+			leaderAddr := strings.TrimSpace(peer)
+			log.Printf("Attempting to join via %s", leaderAddr)
+
+			conn, err := grpc.NewClient(leaderAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+
+			if err != nil {
+				log.Printf("Failed to connect to %s: %v", leaderAddr, err)
+				continue
+			}
+
+			defer conn.Close()
+
+			// client := pb.NewNodeCommunicationClient(conn)
+			// ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			// defer cancel()
+
+			// _, err = client.Heartbeat(ctx, &pb.HeartbeatRequest{
+			// 	NodeId:    nodeID,
+			// 	Timestamp: time.Now().Unix(),
+			// })
+
+			// if err == nil {
+			// 	log.Printf("Peer %s is alive", leaderAddr)
+			// }
+			// log.Printf("Peer %s is not responding: %v", leaderAddr, err)
+		}
+
 		time.Sleep(2 * time.Second)
-		log.Printf("node other nodes %v", os.Getenv("NODE_ID"))
-		s.store.Join("localhost:50051", os.Getenv("NODE_ID"))
+		log.Printf("Final state - Node %s, State: %v", nodeID, s.store.GetRaftState())
+		// log.Printf("node other nodes %v", nodeID)
+		// s.store.Join("kvstore-server-01:50051", nodeID)
+
 	}
-	// }
 
 	// s.store.Join("localhost:50002", "NODE_03")
 	//restore memomy based on dbData

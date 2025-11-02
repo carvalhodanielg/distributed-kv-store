@@ -40,6 +40,7 @@ type KVStore struct {
 
 	logger *log.Logger
 	// db       *bolt.DB
+	transportManager *transport.Manager
 }
 
 const (
@@ -112,33 +113,38 @@ func (kv *KVStore) PutFromDb(key, value string) {
 }
 
 func (kv *KVStore) Put(key, value string) interface{} {
-	kv.mu.Lock()
-	defer kv.mu.Unlock()
 
-	if kv.store == nil {
-		kv.store = make(map[string]string)
-	}
+	// if kv.raft.State() != raft.Leader {
+	// 	return fmt.Errorf("not leader")
+	// }
 
-	//escreve no log -> memória -> banco
-	LogWrite(key, value)
-	kv.store[key] = value
+	// kv.mu.Lock()
+	// defer kv.mu.Unlock()
 
-	db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(constants.BucketStore))
-		err := b.Put([]byte(key), []byte(value))
-		return err
-	})
+	// if kv.store == nil {
+	// 	kv.store = make(map[string]string)
+	// }
 
-	if wlist, ok := kv.watchers[key]; ok {
+	// //escreve no log -> memória -> banco
+	// LogWrite(key, value)
+	// kv.store[key] = value
 
-		for _, w := range wlist {
-			select {
-			case w.Events <- fmt.Sprintf("Key %s updated to %s", key, value):
-			default:
-				fmt.Printf("Envio não foi feito pro canal")
-			}
-		}
-	}
+	// db.Update(func(tx *bolt.Tx) error {
+	// 	b := tx.Bucket([]byte(constants.BucketStore))
+	// 	err := b.Put([]byte(key), []byte(value))
+	// 	return err
+	// })
+
+	// if wlist, ok := kv.watchers[key]; ok {
+
+	// 	for _, w := range wlist {
+	// 		select {
+	// 		case w.Events <- fmt.Sprintf("Key %s updated to %s", key, value):
+	// 		default:
+	// 			fmt.Printf("Envio não foi feito pro canal")
+	// 		}
+	// 	}
+	// }
 
 	fmt.Printf("[PUT] key=%s, value=%s\n", key, value)
 
@@ -152,8 +158,8 @@ func (kv *KVStore) Put(key, value string) interface{} {
 	if err != nil {
 		return err
 	}
-
 	f := kv.raft.Apply(b, raftTimeout)
+	log.Printf("apply -> %v", f)
 	return f.Error()
 }
 
@@ -208,6 +214,11 @@ type fsm KVStore
 func (s *KVStore) Join(myAddress, myID string) error {
 	s.logger.Printf("received join request for remote node %s at %s", myID, myAddress)
 
+	leader := s.raft.Leader()
+	if leader == "" {
+		return fmt.Errorf("no leader available")
+	}
+
 	configFuture := s.raft.GetConfiguration()
 	log.Printf("config joining %v", configFuture)
 
@@ -218,7 +229,8 @@ func (s *KVStore) Join(myAddress, myID string) error {
 
 	f := s.raft.AddVoter(raft.ServerID(myID), raft.ServerAddress(myAddress), 0, 0)
 
-	if f.Error() != nil {
+	if err := f.Error(); err != nil {
+		s.logger.Printf("Failed to add voter: %v", err)
 		return f.Error()
 	}
 
@@ -227,7 +239,14 @@ func (s *KVStore) Join(myAddress, myID string) error {
 
 }
 
-func (s *KVStore) Open(myAddress, myID string) error {
+func (kv *KVStore) GetRaftState() raft.RaftState {
+	if kv.raft == nil {
+		return raft.Shutdown
+	}
+	return kv.raft.State()
+}
+
+func (s *KVStore) Open(myAddress, myID string, bootstrap bool) error {
 	config := raft.DefaultConfig()
 	config.LocalID = raft.ServerID(myID)
 
@@ -261,6 +280,7 @@ func (s *KVStore) Open(myAddress, myID string) error {
 
 	//setup transport RPC
 	transportManager := transport.New(raft.ServerAddress(myAddress), []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())})
+	s.transportManager = transportManager
 
 	myRaft, err := raft.NewRaft(config, (*fsm)(s), logsDb, stableDb, snapshotStore, transportManager.Transport())
 	if err != nil {
@@ -269,17 +289,50 @@ func (s *KVStore) Open(myAddress, myID string) error {
 
 	s.raft = myRaft
 
-	configuration := raft.Configuration{
-		Servers: []raft.Server{
-			{
-				ID:      config.LocalID,
-				Address: raft.ServerAddress(myAddress),
+	if bootstrap {
+		configFuture := myRaft.GetConfiguration()
+
+		if err := configFuture.Error(); err != nil {
+			log.Printf("error getting Raft config %v", err)
+		} else {
+			servers := configFuture.Configuration().Servers
+
+			if len(servers) > 0 {
+				log.Printf("Cluster already configured with %d servers, skipping bootstrap ", len(servers))
+				return nil
+			}
+		}
+
+		configuration := raft.Configuration{
+			Servers: []raft.Server{
+				{
+					ID:      config.LocalID,
+					Address: raft.ServerAddress(myAddress),
+				},
 			},
-		},
+		}
+
+		future := myRaft.BootstrapCluster(configuration)
+
+		if err := future.Error(); err != nil && err != raft.ErrCantBootstrap {
+			log.Printf("error bootstrapping cluster %v", err)
+			return err
+		}
+		log.Printf("Cluster bootstraped successfully")
 	}
-	myRaft.BootstrapCluster(configuration)
-	log.Printf("state: %v | config: %v | leader: %v", myRaft.State(), s.raft.GetConfiguration().Configuration().Servers, myRaft.Leader())
+	log.Printf("state: %  v | config: %v | leader: %v", myRaft.State(), s.raft.GetConfiguration().Configuration().Servers, myRaft.Leader())
 	return nil
+}
+
+func (s *KVStore) GetTransportManager() *transport.Manager {
+	return s.transportManager
+}
+
+func (kv *KVStore) GetLeader() string {
+	if kv.raft == nil {
+		return ""
+	}
+	return string(kv.raft.Leader())
 }
 
 func (f *fsm) Apply(l *raft.Log) interface{} {
@@ -291,6 +344,7 @@ func (f *fsm) Apply(l *raft.Log) interface{} {
 	}
 
 	if c.Op == "put" {
+		log.Printf("calling apply Put, key: %v e value %v", c.Key, c.Value)
 		return f.ApplyPut(c.Key, c.Value)
 	}
 
@@ -303,6 +357,11 @@ func (f *fsm) Apply(l *raft.Log) interface{} {
 }
 
 func (f *fsm) ApplyPut(key, value string) interface{} {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.store[key] = value
+
 	return nil
 }
 

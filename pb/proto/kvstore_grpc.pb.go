@@ -19,11 +19,12 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	KvStore_Put_FullMethodName    = "/kvstore.KvStore/Put"
-	KvStore_Get_FullMethodName    = "/kvstore.KvStore/Get"
-	KvStore_Delete_FullMethodName = "/kvstore.KvStore/Delete"
-	KvStore_GetAll_FullMethodName = "/kvstore.KvStore/GetAll"
-	KvStore_Watch_FullMethodName  = "/kvstore.KvStore/Watch"
+	KvStore_Put_FullMethodName      = "/kvstore.KvStore/Put"
+	KvStore_Get_FullMethodName      = "/kvstore.KvStore/Get"
+	KvStore_Delete_FullMethodName   = "/kvstore.KvStore/Delete"
+	KvStore_GetAll_FullMethodName   = "/kvstore.KvStore/GetAll"
+	KvStore_Watch_FullMethodName    = "/kvstore.KvStore/Watch"
+	KvStore_JoinNode_FullMethodName = "/kvstore.KvStore/JoinNode"
 )
 
 // KvStoreClient is the client API for KvStore service.
@@ -35,6 +36,7 @@ type KvStoreClient interface {
 	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
 	GetAll(ctx context.Context, in *GetAllRequest, opts ...grpc.CallOption) (*GetAllResponse, error)
 	Watch(ctx context.Context, in *WatchRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[WatchResponse], error)
+	JoinNode(ctx context.Context, in *JoinNodeRequest, opts ...grpc.CallOption) (*JoinNodeResponse, error)
 }
 
 type kvStoreClient struct {
@@ -104,6 +106,16 @@ func (c *kvStoreClient) Watch(ctx context.Context, in *WatchRequest, opts ...grp
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type KvStore_WatchClient = grpc.ServerStreamingClient[WatchResponse]
 
+func (c *kvStoreClient) JoinNode(ctx context.Context, in *JoinNodeRequest, opts ...grpc.CallOption) (*JoinNodeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(JoinNodeResponse)
+	err := c.cc.Invoke(ctx, KvStore_JoinNode_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // KvStoreServer is the server API for KvStore service.
 // All implementations must embed UnimplementedKvStoreServer
 // for forward compatibility.
@@ -113,6 +125,7 @@ type KvStoreServer interface {
 	Delete(context.Context, *DeleteRequest) (*DeleteResponse, error)
 	GetAll(context.Context, *GetAllRequest) (*GetAllResponse, error)
 	Watch(*WatchRequest, grpc.ServerStreamingServer[WatchResponse]) error
+	JoinNode(context.Context, *JoinNodeRequest) (*JoinNodeResponse, error)
 	mustEmbedUnimplementedKvStoreServer()
 }
 
@@ -137,6 +150,9 @@ func (UnimplementedKvStoreServer) GetAll(context.Context, *GetAllRequest) (*GetA
 }
 func (UnimplementedKvStoreServer) Watch(*WatchRequest, grpc.ServerStreamingServer[WatchResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method Watch not implemented")
+}
+func (UnimplementedKvStoreServer) JoinNode(context.Context, *JoinNodeRequest) (*JoinNodeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method JoinNode not implemented")
 }
 func (UnimplementedKvStoreServer) mustEmbedUnimplementedKvStoreServer() {}
 func (UnimplementedKvStoreServer) testEmbeddedByValue()                 {}
@@ -242,6 +258,24 @@ func _KvStore_Watch_Handler(srv interface{}, stream grpc.ServerStream) error {
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type KvStore_WatchServer = grpc.ServerStreamingServer[WatchResponse]
 
+func _KvStore_JoinNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(JoinNodeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(KvStoreServer).JoinNode(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: KvStore_JoinNode_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(KvStoreServer).JoinNode(ctx, req.(*JoinNodeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // KvStore_ServiceDesc is the grpc.ServiceDesc for KvStore service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -264,6 +298,10 @@ var KvStore_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetAll",
 			Handler:    _KvStore_GetAll_Handler,
+		},
+		{
+			MethodName: "JoinNode",
+			Handler:    _KvStore_JoinNode_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
